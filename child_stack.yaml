@@ -1,0 +1,15 @@
+Parameters:
+  ImageId:
+    Default: ami-39f8215b
+    Description: Image Id
+    Type: String
+  SecurityGroup:
+    Description: Security Group
+    Type: String
+Resources:
+  instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref 'ImageId'
+      SecurityGroups:
+        - !Ref 'SecurityGroup'

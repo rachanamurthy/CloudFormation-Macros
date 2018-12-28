@@ -1,0 +1,53 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Transform:
+  - GenerateTemplateUrl
+
+Parameters:
+  ImageId:
+    Default: ami-39f8215b
+    Description: Image Id
+    Type: String
+  Template:
+    Default: https://s3.amazonaws.com/test-macros/child_stack.yaml
+    Description: Child Stack URL
+    Type: String
+  Bucket:
+    Default: test-macros
+    Description: Bucket name 
+    Type: String
+  Key:
+    Default: child_stack.yaml
+    Description: Key name
+    Type: String
+
+Resources:
+  securitygroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: test
+      SecurityGroupIngress:
+        - CidrIp: '0.0.0.0/0'
+          FromPort: '80'
+          IpProtocol: tcp
+          ToPort: '80'
+        - CidrIp: '0.0.0.0/0'
+          FromPort: '22'
+          IpProtocol: tcp
+          ToPort: '22'
+  childStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Bucket: 'test-macros'
+      Key: 'child_stack.yaml'
+      Parameters:
+        ImageId: !Ref 'ImageId'
+        SecurityGroup: !Ref 'securitygroup'
+  childStack2:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Ref 'Template'
+      Parameters:
+        ImageId: !Ref 'ImageId'
+        SecurityGroup: !Ref 'securitygroup'

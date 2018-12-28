@@ -1,0 +1,110 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+            - Effect: Allow
+              Principal:
+                Service: [lambda.amazonaws.com]
+              Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: S3ReadAccessandLogs
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+              - Effect: Allow
+                Action: ['logs:*']
+                Resource: 'arn:aws:logs:*:*:*'
+                Sid: AllowLogs
+              - Effect: Allow
+                Action: ['s3:Get*','s3:List*']
+                Resource: '*'
+                Sid: AllowS3
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: "index.lambda_handler"
+      Runtime: python3.6
+      Timeout: 300
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import boto3, json, os
+          from botocore.exceptions import *
+
+          s3 = boto3.resource('s3')
+          client = boto3.client('s3')
+
+          def lambda_handler(event, context):
+            
+            #Check if the object exists in the bucket
+            def check_object(bucket,key):
+              try:
+                response = client.head_object(Bucket=bucket, Key=key)
+                
+              except botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == '404':
+                  return False
+
+              else:
+                return True
+            
+            #generate Template URL for the given object
+            def template_url(bucket, key):
+              if check_object(bucket, key):
+                TemplateUrl = 'https://s3.amazonaws.com/' + bucket + '/' + key
+                print(TemplateUrl)
+              return TemplateUrl
+
+            fragment = event["fragment"] if "fragment" in event else {}
+
+            print(fragment)
+
+            resources = fragment['Resources']
+
+            for i in resources.keys():
+              for j in resources[i].keys():
+                if resources[i][j] == 'AWS::CloudFormation::Stack':
+                  if 'TemplateURL' not in resources[i]['Properties']:
+                    
+                    #retrieve the bucket and key value 
+                    bucket = resources[i]['Properties']['Bucket']
+                    key = resources[i]['Properties']['Key']
+
+                    #add the template url
+                    resources[i]['Properties']['TemplateURL'] = str(template_url(bucket,key))
+                    
+                    #delete the properties
+                    del resources[i]['Properties']['Bucket']
+                    del resources[i]['Properties']['Key']
+
+            fragment['Resources'] = resources
+
+            response = {}
+            response["requestId"] = event["requestId"]
+            response["status"] = "SUCCESS"
+            response["fragment"] = fragment
+
+            return(response)
+
+
+  LambdaFunctionPermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Principal: 'cloudformation.amazonaws.com'
+
+  MacroFunction:
+    Type: AWS::CloudFormation::Macro
+    Properties:
+      Name: "GenerateTemplateUrl"
+      Description: "generated the template url"
+      FunctionName: !Ref LambdaFunction
