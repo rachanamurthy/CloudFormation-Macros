@@ -1,6 +1,6 @@
 Parameters:
   ImageId:
-    Default: ami-39f8215b
+    Default: ami-xxxxxxx
     Description: Image Id
     Type: String
   SecurityGroup:
